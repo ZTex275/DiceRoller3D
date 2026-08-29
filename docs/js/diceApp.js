@@ -491,12 +491,44 @@ window.diceInterop = (function () {
     }
 
     function createD10Geometry() {
-        const points = [];
-        for (let i = 0; i < 10; i++) {
-            const angle = (i / 10) * Math.PI * 2;
-            points.push(new THREE.Vector2(Math.cos(angle) * 0.7, Math.sin(angle) * 0.7));
+        const scale = 0.85;
+        const beltR = 0.55 * scale;
+        const poleH = 0.65 * scale;
+        const beltY = 0.15 * scale;
+        const verts = [];
+
+        verts.push(0, poleH, 0);
+        verts.push(0, -poleH, 0);
+
+        for (let i = 0; i < 5; i++) {
+            const angle = (i / 5) * Math.PI * 2 - Math.PI / 2;
+            verts.push(Math.cos(angle) * beltR, beltY, Math.sin(angle) * beltR);
         }
-        return new THREE.LatheGeometry(points, 10);
+
+        for (let i = 0; i < 5; i++) {
+            const angle = (i / 5) * Math.PI * 2 - Math.PI / 2 + Math.PI / 5;
+            verts.push(Math.cos(angle) * beltR, -beltY, Math.sin(angle) * beltR);
+        }
+
+        const indices = [];
+        const top = 0;
+        const bot = 1;
+        const U = function (i) { return 2 + (i % 5); };
+        const L = function (i) { return 7 + (i % 5); };
+
+        for (let i = 0; i < 5; i++) {
+            const next = (i + 1) % 5;
+            indices.push(top, U(i), L(i));
+            indices.push(top, L(i), U(next));
+            indices.push(bot, U(next), L(i));
+            indices.push(bot, L(next), U(next));
+        }
+
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+        geometry.setIndex(indices);
+        geometry.computeVertexNormals();
+        return geometry;
     }
 
     function layoutDice(count) {

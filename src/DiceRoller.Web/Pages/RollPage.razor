@@ -17,6 +17,10 @@
         <aside class="dice-panel">
             <h2>Набор кубиков</h2>
 
+            <button type="button" class="btn-roll" @onclick="RollAll" disabled="@(_rolling || !CanRoll)">
+                @(_rolling ? "Бросок..." : "Бросить!")
+            </button>
+
             @foreach (var entry in _pool)
             {
                 <div class="dice-row" @key="entry.Id">
@@ -25,7 +29,7 @@
                         <select @bind="entry.Sides">
                             @foreach (var sides in SupportedDice.Sides)
                             {
-                                <option value="@sides">d@sides</option>
+                                <option value="@sides">d@(sides)</option>
                             }
                         </select>
                     </label>
@@ -43,13 +47,9 @@
                 <button type="button" @onclick="AddEntry" disabled="@_rolling">+ Добавить тип</button>
                 @foreach (var sides in SupportedDice.Sides)
                 {
-                    <button type="button" class="btn-preset" @onclick="() => AddPreset(sides, 1)" disabled="@_rolling">d@sides</button>
+                    <button type="button" class="btn-preset" @onclick="() => AddPreset(sides, 1)" disabled="@_rolling">d@(sides)</button>
                 }
             </div>
-
-            <button type="button" class="btn-roll" @onclick="RollAll" disabled="@(_rolling || !CanRoll)">
-                @(_rolling ? "Бросок..." : "Бросить!")
-            </button>
 
             @if (_lastResult is not null)
             {

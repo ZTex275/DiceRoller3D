@@ -1,4 +1,4 @@
-* {
+﻿* {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
@@ -168,7 +168,7 @@ html, body {
     font-size: 0.95rem;
     font-weight: 600;
     background: #27ae60;
-    margin-top: 0.35rem;
+    margin-bottom: 0.6rem;
 }
 
 .btn-roll:hover:not(:disabled) {
