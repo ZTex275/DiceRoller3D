@@ -8,7 +8,8 @@ html, body {
     font-family: 'Segoe UI', system-ui, sans-serif;
     background: #0f0f1a;
     color: #eee;
-    min-height: 100vh;
+    height: 100%;
+    overflow: hidden;
 }
 
 .loading-screen {
@@ -41,47 +42,52 @@ html, body {
 }
 
 .dice-app {
-    min-height: 100vh;
+    height: 100dvh;
+    max-height: 100dvh;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .dice-header {
-    padding: 1rem 1.5rem;
+    padding: 0.6rem 1rem;
     background: #16213e;
     border-bottom: 1px solid #2a3f6f;
+    flex-shrink: 0;
 }
 
 .dice-header h1 {
-    font-size: 1.5rem;
+    font-size: 1.2rem;
     font-weight: 600;
 }
 
 .dice-header p {
     color: #8899bb;
-    margin-top: 0.25rem;
-    font-size: 0.9rem;
+    margin-top: 0.15rem;
+    font-size: 0.8rem;
 }
 
 .dice-layout {
     flex: 1;
     display: flex;
     flex-wrap: wrap;
+    min-height: 0;
+    overflow: hidden;
 }
 
 .dice-panel {
     width: 320px;
     min-width: 280px;
-    padding: 1rem;
+    padding: 0.75rem;
     background: #1a1a2e;
     border-right: 1px solid #2a3f6f;
     overflow-y: auto;
-    max-height: calc(100vh - 80px);
+    flex-shrink: 0;
 }
 
 .dice-panel h2 {
-    font-size: 1rem;
-    margin-bottom: 0.75rem;
+    font-size: 0.95rem;
+    margin-bottom: 0.5rem;
     color: #aab;
 }
 
@@ -89,8 +95,8 @@ html, body {
     display: flex;
     gap: 0.5rem;
     align-items: flex-end;
-    margin-bottom: 0.6rem;
-    padding: 0.6rem;
+    margin-bottom: 0.5rem;
+    padding: 0.5rem;
     background: #16213e;
     border-radius: 8px;
 }
@@ -105,7 +111,7 @@ html, body {
 
 .dice-row input {
     margin-top: 0.25rem;
-    padding: 0.4rem;
+    padding: 0.35rem;
     border: 1px solid #334;
     border-radius: 4px;
     background: #0f0f1a;
@@ -132,17 +138,17 @@ html, body {
 .dice-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.4rem;
-    margin: 0.75rem 0;
+    gap: 0.35rem;
+    margin: 0.5rem 0;
 }
 
 .dice-actions button,
 .btn-roll {
-    padding: 0.5rem 0.75rem;
+    padding: 0.45rem 0.65rem;
     border: none;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     background: #2a3f6f;
     color: #fff;
 }
@@ -158,11 +164,11 @@ html, body {
 
 .btn-roll {
     width: 100%;
-    padding: 0.75rem;
-    font-size: 1rem;
+    padding: 0.65rem;
+    font-size: 0.95rem;
     font-weight: 600;
     background: #27ae60;
-    margin-top: 0.5rem;
+    margin-top: 0.35rem;
 }
 
 .btn-roll:hover:not(:disabled) {
@@ -175,52 +181,62 @@ button:disabled {
 }
 
 .results-box {
-    margin-top: 1rem;
-    padding: 0.75rem;
+    margin-top: 0.6rem;
+    padding: 0.6rem;
     background: #16213e;
     border-radius: 8px;
 }
 
 .results-box h3 {
-    font-size: 0.9rem;
-    margin-bottom: 0.5rem;
+    font-size: 0.85rem;
+    margin-bottom: 0.4rem;
 }
 
 .results-box ul {
     list-style: none;
-    max-height: 200px;
+    max-height: 100px;
     overflow-y: auto;
 }
 
 .results-box li {
-    padding: 0.2rem 0;
-    font-size: 0.85rem;
+    padding: 0.15rem 0;
+    font-size: 0.8rem;
     border-bottom: 1px solid #2a3f6f;
 }
 
 .dice-stage {
     flex: 1;
-    min-width: 300px;
-    min-height: 400px;
+    min-width: 0;
+    min-height: 0;
     position: relative;
 }
 
 .dice-canvas {
     width: 100%;
-    height: calc(100vh - 80px);
-    min-height: 400px;
+    height: 100%;
     display: block;
+    touch-action: none;
 }
 
 @media (max-width: 700px) {
+    .dice-header p {
+        display: none;
+    }
+
+    .dice-layout {
+        flex-direction: column;
+    }
+
     .dice-panel {
         width: 100%;
-        max-height: none;
+        min-width: 0;
+        max-height: 38vh;
         border-right: none;
         border-bottom: 1px solid #2a3f6f;
     }
 
-    .dice-canvas {
-        height: 50vh;
+    .dice-stage {
+        flex: 1;
+        min-height: 0;
     }
 }
