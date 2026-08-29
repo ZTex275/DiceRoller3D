@@ -1,0 +1,226 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html, body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #0f0f1a;
+    color: #eee;
+    min-height: 100vh;
+}
+
+.loading-screen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-size: 1.2rem;
+    color: #888;
+}
+
+#blazor-error-ui {
+    background: #c0392b;
+    bottom: 0;
+    box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
+    display: none;
+    left: 0;
+    padding: 0.6rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: 1000;
+    color: #fff;
+}
+
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 0.75rem;
+    top: 0.5rem;
+}
+
+.dice-app {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.dice-header {
+    padding: 1rem 1.5rem;
+    background: #16213e;
+    border-bottom: 1px solid #2a3f6f;
+}
+
+.dice-header h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.dice-header p {
+    color: #8899bb;
+    margin-top: 0.25rem;
+    font-size: 0.9rem;
+}
+
+.dice-layout {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.dice-panel {
+    width: 320px;
+    min-width: 280px;
+    padding: 1rem;
+    background: #1a1a2e;
+    border-right: 1px solid #2a3f6f;
+    overflow-y: auto;
+    max-height: calc(100vh - 80px);
+}
+
+.dice-panel h2 {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+    color: #aab;
+}
+
+.dice-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-end;
+    margin-bottom: 0.6rem;
+    padding: 0.6rem;
+    background: #16213e;
+    border-radius: 8px;
+}
+
+.dice-row label {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.75rem;
+    color: #8899bb;
+    flex: 1;
+}
+
+.dice-row input {
+    margin-top: 0.25rem;
+    padding: 0.4rem;
+    border: 1px solid #334;
+    border-radius: 4px;
+    background: #0f0f1a;
+    color: #fff;
+    width: 100%;
+}
+
+.btn-remove {
+    background: #c0392b;
+    border: none;
+    color: #fff;
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.btn-remove:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.dice-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0.75rem 0;
+}
+
+.dice-actions button,
+.btn-roll {
+    padding: 0.5rem 0.75rem;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    background: #2a3f6f;
+    color: #fff;
+}
+
+.dice-actions button:hover:not(:disabled),
+.btn-roll:hover:not(:disabled) {
+    background: #3a5090;
+}
+
+.btn-preset {
+    background: #34495e !important;
+}
+
+.btn-roll {
+    width: 100%;
+    padding: 0.75rem;
+    font-size: 1rem;
+    font-weight: 600;
+    background: #27ae60;
+    margin-top: 0.5rem;
+}
+
+.btn-roll:hover:not(:disabled) {
+    background: #2ecc71;
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.results-box {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background: #16213e;
+    border-radius: 8px;
+}
+
+.results-box h3 {
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+.results-box ul {
+    list-style: none;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.results-box li {
+    padding: 0.2rem 0;
+    font-size: 0.85rem;
+    border-bottom: 1px solid #2a3f6f;
+}
+
+.dice-stage {
+    flex: 1;
+    min-width: 300px;
+    min-height: 400px;
+    position: relative;
+}
+
+.dice-canvas {
+    width: 100%;
+    height: calc(100vh - 80px);
+    min-height: 400px;
+    display: block;
+}
+
+@media (max-width: 700px) {
+    .dice-panel {
+        width: 100%;
+        max-height: none;
+        border-right: none;
+        border-bottom: 1px solid #2a3f6f;
+    }
+
+    .dice-canvas {
+        height: 50vh;
+    }
+}

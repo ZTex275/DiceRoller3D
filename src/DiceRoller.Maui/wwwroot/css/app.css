@@ -1,0 +1,168 @@
+﻿* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html, body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #0f0f1a;
+    color: #eee;
+    min-height: 100vh;
+}
+
+.status-bar-safe-area {
+    height: env(safe-area-inset-top);
+    background: #16213e;
+}
+
+#blazor-error-ui {
+    background: #c0392b;
+    bottom: 0;
+    display: none;
+    left: 0;
+    padding: 0.6rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: 1000;
+    color: #fff;
+}
+
+.dice-app {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.dice-header {
+    padding: 1rem 1.5rem;
+    background: #16213e;
+    border-bottom: 1px solid #2a3f6f;
+}
+
+.dice-header h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.dice-header p {
+    color: #8899bb;
+    margin-top: 0.25rem;
+    font-size: 0.9rem;
+}
+
+.dice-layout {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.dice-panel {
+    padding: 1rem;
+    background: #1a1a2e;
+    border-bottom: 1px solid #2a3f6f;
+    max-height: 45vh;
+    overflow-y: auto;
+}
+
+.dice-panel h2 {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+    color: #aab;
+}
+
+.dice-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-end;
+    margin-bottom: 0.6rem;
+    padding: 0.6rem;
+    background: #16213e;
+    border-radius: 8px;
+}
+
+.dice-row label {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.75rem;
+    color: #8899bb;
+    flex: 1;
+}
+
+.dice-row input {
+    margin-top: 0.25rem;
+    padding: 0.4rem;
+    border: 1px solid #334;
+    border-radius: 4px;
+    background: #0f0f1a;
+    color: #fff;
+    width: 100%;
+}
+
+.btn-remove {
+    background: #c0392b;
+    border: none;
+    color: #fff;
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn-remove:disabled { opacity: 0.4; }
+
+.dice-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0.75rem 0;
+}
+
+.dice-actions button, .btn-roll {
+    padding: 0.5rem 0.75rem;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    background: #2a3f6f;
+    color: #fff;
+}
+
+.btn-preset { background: #34495e !important; }
+
+.btn-roll {
+    width: 100%;
+    padding: 0.75rem;
+    font-size: 1rem;
+    font-weight: 600;
+    background: #27ae60;
+    margin-top: 0.5rem;
+}
+
+button:disabled { opacity: 0.5; }
+
+.results-box {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background: #16213e;
+    border-radius: 8px;
+}
+
+.results-box h3 { font-size: 0.9rem; margin-bottom: 0.5rem; }
+
+.results-box ul { list-style: none; max-height: 120px; overflow-y: auto; }
+
+.results-box li {
+    padding: 0.2rem 0;
+    font-size: 0.85rem;
+    border-bottom: 1px solid #2a3f6f;
+}
+
+.dice-stage { flex: 1; min-height: 50vh; }
+
+.dice-canvas {
+    width: 100%;
+    height: 100%;
+    min-height: 50vh;
+    display: block;
+}

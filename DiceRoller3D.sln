@@ -1,0 +1,41 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{6402473A-FF4B-49F8-B2BB-7B5470E6BADA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiceRoller.Core", "src\DiceRoller.Core\DiceRoller.Core.csproj", "{9676723B-62DC-4C76-9371-66F352960337}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiceRoller.Web", "src\DiceRoller.Web\DiceRoller.Web.csproj", "{8CC35392-991A-441C-84B8-D197B93DABEA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiceRoller.Maui", "src\DiceRoller.Maui\DiceRoller.Maui.csproj", "{AE27834C-132F-4D92-B233-9A326371918F}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{9676723B-62DC-4C76-9371-66F352960337}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9676723B-62DC-4C76-9371-66F352960337}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9676723B-62DC-4C76-9371-66F352960337}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9676723B-62DC-4C76-9371-66F352960337}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8CC35392-991A-441C-84B8-D197B93DABEA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8CC35392-991A-441C-84B8-D197B93DABEA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8CC35392-991A-441C-84B8-D197B93DABEA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8CC35392-991A-441C-84B8-D197B93DABEA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AE27834C-132F-4D92-B233-9A326371918F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AE27834C-132F-4D92-B233-9A326371918F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AE27834C-132F-4D92-B233-9A326371918F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AE27834C-132F-4D92-B233-9A326371918F}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{9676723B-62DC-4C76-9371-66F352960337} = {6402473A-FF4B-49F8-B2BB-7B5470E6BADA}
+		{8CC35392-991A-441C-84B8-D197B93DABEA} = {6402473A-FF4B-49F8-B2BB-7B5470E6BADA}
+		{AE27834C-132F-4D92-B233-9A326371918F} = {6402473A-FF4B-49F8-B2BB-7B5470E6BADA}
+	EndGlobalSection
+EndGlobal

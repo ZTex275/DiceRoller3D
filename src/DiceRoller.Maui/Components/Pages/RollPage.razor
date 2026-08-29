@@ -1,0 +1,143 @@
+@page "/"
+@using DiceRoller.Core.Models
+@using DiceRoller.Core.Services
+@inject DiceRollService RollService
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<PageTitle>3D Dice Roller</PageTitle>
+
+<div class="dice-app">
+    <header class="dice-header">
+        <h1>3D Dice Roller</h1>
+        <p>Выберите кубики и бросайте их в 3D</p>
+    </header>
+
+    <div class="dice-layout">
+        <aside class="dice-panel">
+            <h2>Набор кубиков</h2>
+
+            @foreach (var entry in _pool)
+            {
+                <div class="dice-row" @key="entry.Id">
+                    <label>
+                        Граней
+                        <input type="number" min="2" max="1000" @bind="entry.Sides" @bind:event="oninput" />
+                    </label>
+                    <label>
+                        Штук
+                        <input type="number" min="1" max="50" @bind="entry.Count" @bind:event="oninput" />
+                    </label>
+                    <button type="button" class="btn-remove" @onclick="() => RemoveEntry(entry.Id)" disabled="@_rolling">
+                        ✕
+                    </button>
+                </div>
+            }
+
+            <div class="dice-actions">
+                <button type="button" @onclick="AddEntry" disabled="@_rolling">+ Добавить тип</button>
+                <button type="button" class="btn-preset" @onclick="() => AddPreset(6,1)" disabled="@_rolling">d6</button>
+                <button type="button" class="btn-preset" @onclick="() => AddPreset(8,2)" disabled="@_rolling">2×d8</button>
+                <button type="button" class="btn-preset" @onclick="() => AddPreset(100,1)" disabled="@_rolling">d100</button>
+            </div>
+
+            <button type="button" class="btn-roll" @onclick="RollAll" disabled="@(_rolling || !CanRoll)">
+                @(_rolling ? "Бросок..." : "Бросить!")
+            </button>
+
+            @if (_lastResult is not null)
+            {
+                <div class="results-box">
+                    <h3>Результаты (сумма: @_lastResult.Total)</h3>
+                    <ul>
+                        @foreach (var r in _lastResult.Results)
+                        {
+                            <li>d@r.Sides: <strong>@r.Value</strong></li>
+                        }
+                    </ul>
+                </div>
+            }
+        </aside>
+
+        <main class="dice-stage">
+            <canvas @ref="_canvas" class="dice-canvas"></canvas>
+        </main>
+    </div>
+</div>
+
+@code {
+    private ElementReference _canvas;
+    private DotNetObjectReference<RollPage>? _dotNetRef;
+    private List<DiceEntry> _pool = [new DiceEntry { Sides = 6, Count = 1 }];
+    private RollBatchResult? _lastResult;
+    private bool _rolling;
+    private bool _sceneReady;
+
+    private bool CanRoll => _pool.Any(e => e.Count > 0 && e.Sides >= 2);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("diceInterop.initDiceScene", _canvas, _dotNetRef);
+            _sceneReady = true;
+        }
+    }
+
+    private void AddEntry() => _pool.Add(new DiceEntry());
+
+    private void AddPreset(int sides, int count)
+    {
+        _pool.Add(new DiceEntry { Sides = sides, Count = count });
+    }
+
+    private void RemoveEntry(Guid id)
+    {
+        if (_pool.Count <= 1) return;
+        _pool.RemoveAll(e => e.Id == id);
+    }
+
+    private async Task RollAll()
+    {
+        if (!_sceneReady || _rolling || !CanRoll) return;
+
+        _rolling = true;
+        _lastResult = RollService.Roll(_pool);
+
+        var expanded = new List<object>();
+        foreach (var entry in _pool)
+        {
+            for (var i = 0; i < entry.Count; i++)
+            {
+                expanded.Add(new { sides = entry.Sides, entryId = entry.Id.ToString() });
+            }
+        }
+
+        var resultPayload = _lastResult.Results
+            .Select(r => new { value = r.Value, sides = r.Sides })
+            .ToList();
+
+        await JS.InvokeVoidAsync("diceInterop.rollDiceScene", expanded, resultPayload);
+    }
+
+    [JSInvokable]
+    public Task OnRollAnimationComplete()
+    {
+        _rolling = false;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _dotNetRef?.Dispose();
+        try
+        {
+            await JS.InvokeVoidAsync("diceInterop.disposeDiceScene");
+        }
+        catch
+        {
+        }
+    }
+}
