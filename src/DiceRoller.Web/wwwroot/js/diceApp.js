@@ -4,6 +4,7 @@ window.diceInterop = (function () {
     let camDist = 16, camYaw = 0.35, camPitch = 0.48;
     let dragActive = false, lastPointerX = 0, lastPointerY = 0;
     let pinchStartDist = 0, pinchStartCamDist = 16;
+    let activePointers = new Map();
 
     const COLORS = [
         0xe74c3c, 0x3498db, 0x2ecc71, 0xf39c12, 0x9b59b6,
@@ -22,74 +23,264 @@ window.diceInterop = (function () {
         const ctx = c.getContext('2d');
         ctx.fillStyle = bgHex;
         ctx.fillRect(0, 0, size, size);
-        ctx.fillStyle = 'rgba(255,255,255,0.93)';
-        ctx.beginPath();
-        ctx.arc(size / 2, size / 2, size * 0.32, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#1a1a2e';
-        const fontSize = number >= 100 ? size * 0.2 : number >= 10 ? size * 0.27 : size * 0.36;
-        ctx.font = 'bold ' + fontSize + 'px Arial';
+        ctx.fillStyle = '#ffffff';
+        const fontSize = number >= 100 ? size * 0.22 : number >= 10 ? size * 0.3 : size * 0.42;
+        ctx.font = 'bold ' + fontSize + 'px Arial,sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(String(number), size / 2, size / 2 + 2);
+        ctx.fillText(String(number), size / 2, size / 2);
         const tex = new THREE.CanvasTexture(c);
         tex.anisotropy = 4;
+        tex.needsUpdate = true;
+        if (THREE.SRGBColorSpace) {
+            tex.colorSpace = THREE.SRGBColorSpace;
+        }
         return tex;
     }
 
-    function dieMaterial(sides, faceNum, bgHex) {
-        return new THREE.MeshStandardMaterial({
-            map: createNumberTexture(faceNum, bgHex),
-            metalness: 0.15,
-            roughness: 0.45,
-            flatShading: true
+    function dieMaterial(faceNum, bgHex) {
+        return new THREE.MeshBasicMaterial({
+            map: createNumberTexture(faceNum, bgHex)
         });
     }
 
-    function ensureFaceGroups(geometry) {
-        if (geometry.groups && geometry.groups.length > 1) {
-            return geometry.groups.length;
-        }
-        geometry.clearGroups();
-        const index = geometry.index;
-        const faceCount = index ? index.count / 3 : geometry.attributes.position.count / 3;
-        for (let i = 0; i < faceCount; i++) {
-            geometry.addGroup(i * 3, 3, i);
-        }
-        return faceCount;
+    function triangleNormal(pos, triIdx) {
+        const i = triIdx * 3;
+        const vA = new THREE.Vector3().fromBufferAttribute(pos, i);
+        const vB = new THREE.Vector3().fromBufferAttribute(pos, i + 1);
+        const vC = new THREE.Vector3().fromBufferAttribute(pos, i + 2);
+        return vC.clone().sub(vB).cross(vA.clone().sub(vB)).normalize();
     }
 
-    function extractFaceNormals(geometry) {
-        geometry.computeVertexNormals();
-        const pos = geometry.attributes.position;
-        const index = geometry.index;
-        const faceCount = index ? index.count / 3 : pos.count / 3;
+    function triangleCenter(pos, triIdx) {
+        const i = triIdx * 3;
+        const vA = new THREE.Vector3().fromBufferAttribute(pos, i);
+        const vB = new THREE.Vector3().fromBufferAttribute(pos, i + 1);
+        const vC = new THREE.Vector3().fromBufferAttribute(pos, i + 2);
+        return vA.clone().add(vB).add(vC).multiplyScalar(1 / 3);
+    }
+
+    function splitGeometryForFaceTextures(geometry) {
+        const src = geometry.index !== null ? geometry.toNonIndexed() : geometry.clone();
+        const pos = src.attributes.position;
+        const triCount = pos.count / 3;
+        const triData = [];
+
+        for (let t = 0; t < triCount; t++) {
+            triData.push({
+                idx: t,
+                normal: triangleNormal(pos, t),
+                center: triangleCenter(pos, t)
+            });
+        }
+
+        const clusters = [];
+        const used = new Array(triCount).fill(false);
+
+        for (let t = 0; t < triCount; t++) {
+            if (used[t]) continue;
+            const cluster = [t];
+            used[t] = true;
+            const ref = triData[t];
+            for (let u = t + 1; u < triCount; u++) {
+                if (used[u]) continue;
+                const other = triData[u];
+                if (ref.normal.dot(other.normal) > 0.99) {
+                    const delta = other.center.clone().sub(ref.center);
+                    if (Math.abs(delta.dot(ref.normal)) < 0.05) {
+                        cluster.push(u);
+                        used[u] = true;
+                    }
+                }
+            }
+            let normal = ref.normal.clone();
+            if (normal.dot(ref.center) < 0) normal.negate();
+            clusters.push({ triangles: cluster, normal: normal });
+        }
+
+        const positions = [];
         const normals = [];
-        for (let i = 0; i < faceCount; i++) {
-            const ia = index ? index.getX(i * 3) : i * 3;
-            const ib = index ? index.getX(i * 3 + 1) : i * 3 + 1;
-            const ic = index ? index.getX(i * 3 + 2) : i * 3 + 2;
-            const vA = new THREE.Vector3().fromBufferAttribute(pos, ia);
-            const vB = new THREE.Vector3().fromBufferAttribute(pos, ib);
-            const vC = new THREE.Vector3().fromBufferAttribute(pos, ic);
-            normals.push(vC.clone().sub(vB).cross(vA.clone().sub(vB)).normalize());
+        const uvs = [];
+        const groups = [];
+        let offset = 0;
+
+        clusters.forEach(function (cluster, faceIdx) {
+            groups.push({ start: offset, count: cluster.triangles.length * 3, materialIndex: faceIdx });
+
+            const n = cluster.normal;
+            const tangent = Math.abs(n.y) < 0.9
+                ? new THREE.Vector3(0, 1, 0).cross(n).normalize()
+                : new THREE.Vector3(1, 0, 0).cross(n).normalize();
+            const bitangent = n.clone().cross(tangent);
+
+            const projected = [];
+            cluster.triangles.forEach(function (triIdx) {
+                const base = triIdx * 3;
+                for (let k = 0; k < 3; k++) {
+                    const v = new THREE.Vector3(
+                        pos.getX(base + k),
+                        pos.getY(base + k),
+                        pos.getZ(base + k)
+                    );
+                    projected.push({
+                        v: v,
+                        u: v.dot(tangent),
+                        vv: v.dot(bitangent)
+                    });
+                }
+            });
+
+            if (projected.length === 3) {
+                const triUvs = [[0.5, 0.9], [0.1, 0.15], [0.9, 0.15]];
+                projected.forEach(function (p, idx) {
+                    positions.push(p.v.x, p.v.y, p.v.z);
+                    normals.push(n.x, n.y, n.z);
+                    uvs.push(triUvs[idx][0], triUvs[idx][1]);
+                    offset++;
+                });
+            } else {
+                let centU = 0;
+                let centV = 0;
+                projected.forEach(function (p) {
+                    centU += p.u;
+                    centV += p.vv;
+                });
+                centU /= projected.length;
+                centV /= projected.length;
+
+                let maxExt = 0.001;
+                projected.forEach(function (p) {
+                    maxExt = Math.max(maxExt, Math.abs(p.u - centU), Math.abs(p.vv - centV));
+                });
+                const scale = 0.42 / maxExt;
+
+                projected.forEach(function (p) {
+                    positions.push(p.v.x, p.v.y, p.v.z);
+                    normals.push(n.x, n.y, n.z);
+                    uvs.push(0.5 + (p.u - centU) * scale, 0.5 + (p.vv - centV) * scale);
+                    offset++;
+                });
+            }
+        });
+
+        const result = new THREE.BufferGeometry();
+        result.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        result.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+        result.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        result.clearGroups();
+        groups.forEach(function (g) {
+            result.addGroup(g.start, g.count, g.materialIndex);
+        });
+
+        return {
+            geometry: result,
+            faceCount: clusters.length,
+            faceNormals: clusters.map(function (c) { return c.normal; })
+        };
+    }
+
+    function icosahedronDetailForSides(sides) {
+        const levels = [20, 80, 180, 260, 320];
+        for (let d = 0; d < levels.length; d++) {
+            if (levels[d] >= sides) return d;
+        }
+        return levels.length - 1;
+    }
+
+    function fibonacciNormals(count) {
+        const normals = [];
+        const golden = Math.PI * (3 - Math.sqrt(5));
+        for (let i = 0; i < count; i++) {
+            const y = 1 - (i / Math.max(count - 1, 1)) * 2;
+            const r = Math.sqrt(Math.max(0, 1 - y * y));
+            const theta = golden * i;
+            normals.push(new THREE.Vector3(Math.cos(theta) * r, y, Math.sin(theta) * r).normalize());
         }
         return normals;
     }
 
+    function sortBySpherical(normalEntries) {
+        normalEntries.sort(function (a, b) {
+            const phiA = Math.acos(Math.max(-1, Math.min(1, a.n.y)));
+            const phiB = Math.acos(Math.max(-1, Math.min(1, b.n.y)));
+            if (Math.abs(phiA - phiB) > 0.001) return phiA - phiB;
+            const thetaA = Math.atan2(a.n.z, a.n.x);
+            const thetaB = Math.atan2(b.n.z, b.n.x);
+            return thetaA - thetaB;
+        });
+    }
+
+    function numberForD6Normal(n) {
+        const nx = n.x, ny = n.y, nz = n.z;
+        if (ny > 0.5) return 1;
+        if (ny < -0.5) return 6;
+        if (nx > 0.5) return 2;
+        if (nx < -0.5) return 5;
+        if (nz > 0.5) return 3;
+        if (nz < -0.5) return 4;
+        return 1;
+    }
+
+    function assignFaceNumbers(faceNormals, sides) {
+        const count = faceNormals.length;
+        const numbers = new Array(count);
+
+        if (sides === 6 && count === 6) {
+            faceNormals.forEach(function (n, i) {
+                numbers[i] = numberForD6Normal(n);
+            });
+            return numbers;
+        }
+
+        const indexed = faceNormals.map(function (n, i) {
+            return { i: i, n: n.clone().normalize() };
+        });
+
+        if (count === sides) {
+            sortBySpherical(indexed);
+            indexed.forEach(function (item, rank) {
+                numbers[item.i] = rank + 1;
+            });
+            return numbers;
+        }
+
+        if (count > sides) {
+            const slotNormals = fibonacciNormals(sides);
+            indexed.forEach(function (item) {
+                let best = 0;
+                let bestDot = -Infinity;
+                for (let s = 0; s < sides; s++) {
+                    const d = item.n.dot(slotNormals[s]);
+                    if (d > bestDot) {
+                        bestDot = d;
+                        best = s;
+                    }
+                }
+                numbers[item.i] = best + 1;
+            });
+            return numbers;
+        }
+
+        sortBySpherical(indexed);
+        indexed.forEach(function (item, rank) {
+            numbers[item.i] = rank + 1;
+        });
+        return numbers;
+    }
+
     function buildNumberedMesh(geometry, sides, color) {
         const bgHex = colorHex(color);
-        const faceCount = ensureFaceGroups(geometry);
-        const faceNormals = extractFaceNormals(geometry);
-        const faceNumbers = [];
+        const split = splitGeometryForFaceTextures(geometry);
+        const faceCount = split.faceCount;
+        const faceNumbers = assignFaceNumbers(split.faceNormals, sides);
         const materials = [];
+
         for (let i = 0; i < faceCount; i++) {
-            const num = (i % sides) + 1;
-            faceNumbers.push(num);
-            materials.push(dieMaterial(sides, num, bgHex));
+            materials.push(dieMaterial(faceNumbers[i], bgHex));
         }
-        const mesh = new THREE.Mesh(geometry, materials);
-        mesh.userData.faceNormals = faceNormals;
+
+        const mesh = new THREE.Mesh(split.geometry, materials);
+        mesh.userData.faceNormals = split.faceNormals;
         mesh.userData.faceNumbers = faceNumbers;
         return mesh;
     }
@@ -104,24 +295,8 @@ window.diceInterop = (function () {
     }
 
     function setupControls(canvas) {
-        function onPointerDown(x, y) {
-            dragActive = true;
-            lastPointerX = x;
-            lastPointerY = y;
-        }
-
-        function onPointerMove(x, y) {
-            if (!dragActive) return;
-            camYaw += (x - lastPointerX) * 0.008;
-            camPitch = Math.max(-0.3, Math.min(1.1, camPitch + (y - lastPointerY) * 0.005));
-            lastPointerX = x;
-            lastPointerY = y;
-            updateCamera();
-        }
-
-        function onPointerUp() {
-            dragActive = false;
-        }
+        canvas.style.touchAction = 'none';
+        canvas.style.cursor = 'grab';
 
         canvas.addEventListener('wheel', function (e) {
             e.preventDefault();
@@ -129,84 +304,118 @@ window.diceInterop = (function () {
             updateCamera();
         }, { passive: false });
 
-        canvas.addEventListener('mousedown', function (e) {
-            if (e.button === 0) onPointerDown(e.clientX, e.clientY);
-        });
-        window.addEventListener('mousemove', function (e) {
-            onPointerMove(e.clientX, e.clientY);
-        });
-        window.addEventListener('mouseup', onPointerUp);
-
-        canvas.addEventListener('touchstart', function (e) {
-            if (e.touches.length === 1) {
-                onPointerDown(e.touches[0].clientX, e.touches[0].clientY);
-            } else if (e.touches.length === 2) {
+        canvas.addEventListener('pointerdown', function (e) {
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
+            activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            if (activePointers.size === 1) {
+                dragActive = true;
+                lastPointerX = e.clientX;
+                lastPointerY = e.clientY;
+                canvas.setPointerCapture(e.pointerId);
+                canvas.style.cursor = 'grabbing';
+            } else if (activePointers.size === 2) {
                 dragActive = false;
-                const dx = e.touches[0].clientX - e.touches[1].clientX;
-                const dy = e.touches[0].clientY - e.touches[1].clientY;
-                pinchStartDist = Math.hypot(dx, dy);
+                const pts = Array.from(activePointers.values());
+                pinchStartDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
                 pinchStartCamDist = camDist;
             }
-        }, { passive: true });
+        });
 
-        canvas.addEventListener('touchmove', function (e) {
-            if (e.touches.length === 1 && dragActive) {
-                e.preventDefault();
-                onPointerMove(e.touches[0].clientX, e.touches[0].clientY);
-            } else if (e.touches.length === 2) {
-                e.preventDefault();
-                const dx = e.touches[0].clientX - e.touches[1].clientX;
-                const dy = e.touches[0].clientY - e.touches[1].clientY;
-                const dist = Math.hypot(dx, dy);
-                camDist = Math.max(6, Math.min(35, pinchStartCamDist * (pinchStartDist / dist)));
-                updateCamera();
+        canvas.addEventListener('pointermove', function (e) {
+            if (!activePointers.has(e.pointerId)) return;
+            activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+            if (activePointers.size === 2) {
+                const pts = Array.from(activePointers.values());
+                const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+                if (pinchStartDist > 0) {
+                    camDist = Math.max(6, Math.min(35, pinchStartCamDist * (pinchStartDist / dist)));
+                    updateCamera();
+                }
+                return;
             }
-        }, { passive: false });
 
-        canvas.addEventListener('touchend', onPointerUp);
+            if (!dragActive) return;
+            camYaw += (e.clientX - lastPointerX) * 0.008;
+            camPitch = Math.max(-0.3, Math.min(1.1, camPitch + (e.clientY - lastPointerY) * 0.005));
+            lastPointerX = e.clientX;
+            lastPointerY = e.clientY;
+            updateCamera();
+        });
+
+        function endPointer(e) {
+            activePointers.delete(e.pointerId);
+            if (activePointers.size === 1) {
+                const remaining = Array.from(activePointers.values())[0];
+                dragActive = true;
+                lastPointerX = remaining.x;
+                lastPointerY = remaining.y;
+            } else {
+                dragActive = false;
+            }
+            if (activePointers.size === 0) {
+                canvas.style.cursor = 'grab';
+            }
+        }
+
+        canvas.addEventListener('pointerup', endPointer);
+        canvas.addEventListener('pointercancel', endPointer);
     }
 
     function initScene(canvas, ref) {
         dotNetRef = ref;
-        const width = canvas.clientWidth || 800;
-        const height = canvas.clientHeight || 500;
 
-        scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x1a1a2e);
-        scene.fog = new THREE.Fog(0x1a1a2e, 12, 28);
+        function start() {
+            const width = canvas.clientWidth;
+            const height = canvas.clientHeight;
+            if (width < 10 || height < 10) {
+                requestAnimationFrame(start);
+                return;
+            }
 
-        camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-        updateCamera();
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a2e);
+            scene.fog = new THREE.Fog(0x1a1a2e, 12, 28);
 
-        renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
-        renderer.setSize(width, height, false);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.shadowMap.enabled = true;
+            camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
+            updateCamera();
 
-        scene.add(new THREE.AmbientLight(0xffffff, 0.55));
-        const dir = new THREE.DirectionalLight(0xffffff, 0.9);
-        dir.position.set(6, 12, 8);
-        dir.castShadow = true;
-        scene.add(dir);
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+            renderer.setSize(width, height, false);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
 
-        const floor = new THREE.Mesh(
-            new THREE.PlaneGeometry(30, 30),
-            new THREE.MeshStandardMaterial({ color: 0x16213e, roughness: 0.85 })
-        );
-        floor.rotation.x = -Math.PI / 2;
-        floor.position.y = -1.2;
-        floor.receiveShadow = true;
-        scene.add(floor);
+            scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+            const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+            dir.position.set(6, 12, 8);
+            dir.castShadow = true;
+            scene.add(dir);
 
-        setupControls(canvas);
-        window.addEventListener('resize', function () { resize(canvas); });
-        renderLoop();
+            const floor = new THREE.Mesh(
+                new THREE.PlaneGeometry(30, 30),
+                new THREE.MeshStandardMaterial({ color: 0x16213e, roughness: 0.85 })
+            );
+            floor.rotation.x = -Math.PI / 2;
+            floor.position.y = -1.2;
+            floor.receiveShadow = true;
+            scene.add(floor);
+
+            setupControls(canvas);
+            window.addEventListener('resize', function () { resize(canvas); });
+            if (typeof ResizeObserver !== 'undefined') {
+                new ResizeObserver(function () { resize(canvas); }).observe(canvas);
+            }
+            renderLoop();
+        }
+
+        start();
     }
 
     function resize(canvas) {
         if (!renderer || !camera) return;
         const w = canvas.clientWidth || 800;
         const h = canvas.clientHeight || 500;
+        if (w < 1 || h < 1) return;
         camera.aspect = w / h;
         camera.updateProjectionMatrix();
         renderer.setSize(w, h, false);
@@ -226,15 +435,15 @@ window.diceInterop = (function () {
             const bgHex = colorHex(color);
             mesh = new THREE.Mesh(geometry, [
                 new THREE.MeshStandardMaterial({ color: color, metalness: 0.15, roughness: 0.45 }),
-                dieMaterial(2, 1, bgHex),
-                dieMaterial(2, 2, bgHex)
+                dieMaterial(1, bgHex),
+                dieMaterial(2, bgHex)
             ]);
             mesh.userData.faceNormals = [
                 new THREE.Vector3(0, 1, 0),
                 new THREE.Vector3(0, -1, 0)
             ];
             mesh.userData.faceNumbers = [1, 2];
-            mesh.userData.materialFaceMap = [0, 1, 2];
+            mesh.userData.materialFaceMap = [null, 1, 2];
         } else {
             let geometry;
             switch (sides) {
@@ -244,7 +453,7 @@ window.diceInterop = (function () {
                 case 10: geometry = createD10Geometry(); break;
                 case 12: geometry = new THREE.DodecahedronGeometry(0.85); break;
                 case 20: geometry = new THREE.IcosahedronGeometry(0.85); break;
-                default: geometry = new THREE.IcosahedronGeometry(0.85, Math.min(Math.ceil(sides / 10), 2)); break;
+                default: geometry = new THREE.IcosahedronGeometry(0.85, icosahedronDetailForSides(sides)); break;
             }
             mesh = buildNumberedMesh(geometry, sides, color);
         }
@@ -331,8 +540,12 @@ window.diceInterop = (function () {
         const faceNumbers = mesh.userData.faceNumbers;
         const faceNormals = mesh.userData.faceNormals;
         let faceIdx = -1;
+        let bestY = -Infinity;
         for (let i = 0; i < faceNumbers.length; i++) {
-            if (faceNumbers[i] === value) { faceIdx = i; break; }
+            if (faceNumbers[i] === value && faceNormals[i].y > bestY) {
+                bestY = faceNormals[i].y;
+                faceIdx = i;
+            }
         }
         if (faceIdx === -1) faceIdx = (value - 1) % faceNumbers.length;
 
@@ -348,9 +561,9 @@ window.diceInterop = (function () {
         const faceNumbers = mesh.userData.faceNumbers;
         const materialFaceMap = mesh.userData.materialFaceMap;
         mats.forEach(function (m, i) {
-            if (!m.emissive) return;
+            if (!m.map) return;
             var faceNum = materialFaceMap ? materialFaceMap[i] : faceNumbers[i];
-            m.emissive.setHex(faceNum === value ? 0x333333 : 0x000000);
+            m.color.setHex(faceNum === value ? 0xffffff : 0xbbbbbb);
         });
     }
 
