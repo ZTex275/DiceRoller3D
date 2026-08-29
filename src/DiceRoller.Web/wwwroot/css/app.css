@@ -109,7 +109,8 @@ html, body {
     flex: 1;
 }
 
-.dice-row input {
+.dice-row input,
+.dice-row select {
     margin-top: 0.25rem;
     padding: 0.35rem;
     border: 1px solid #334;

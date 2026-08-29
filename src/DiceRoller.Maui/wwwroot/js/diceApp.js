@@ -311,96 +311,41 @@ window.diceInterop = (function () {
         return mesh;
     }
 
-    function buildNGonalPrismGeometry(segments, radius, height) {
-        const positions = [];
-        const normals = [];
-        const uvs = [];
-        const faceNormals = [];
-        const halfH = height / 2;
-        const topCenter = [0, halfH, 0];
-        const bottomCenter = [0, -halfH, 0];
-        const ringBottom = [];
-        const ringTop = [];
+    function createDieMesh(sides, colorIndex) {
+        const color = COLORS[colorIndex % COLORS.length];
+        let mesh;
 
-        for (let i = 0; i < segments; i++) {
-            const a = (i / segments) * Math.PI * 2;
-            const x = Math.cos(a) * radius;
-            const z = Math.sin(a) * radius;
-            ringBottom.push([x, -halfH, z]);
-            ringTop.push([x, halfH, z]);
-        }
-
-        const trisPerFace = 4;
-
-        for (let i = 0; i < segments; i++) {
-            const j = (i + 1) % segments;
-            const aMid = ((i + 0.5) / segments) * Math.PI * 2;
-            const n = new THREE.Vector3(Math.cos(aMid), 0, Math.sin(aMid));
-            faceNormals.push(n);
-
-            const b0 = ringBottom[i];
-            const b1 = ringBottom[j];
-            const t0 = ringTop[i];
-            const t1 = ringTop[j];
-
-            const verts = [
-                b0, b1, t1,
-                b0, t1, t0,
-                topCenter, t0, t1,
-                bottomCenter, b1, b0
+        if (sides === 2) {
+            const geometry = new THREE.CylinderGeometry(0.55, 0.55, 0.12, 32);
+            const bgHex = colorHex(color);
+            mesh = new THREE.Mesh(geometry, [
+                new THREE.MeshStandardMaterial({ color: color, metalness: 0.15, roughness: 0.45 }),
+                dieMaterial(1, bgHex),
+                dieMaterial(2, bgHex)
+            ]);
+            mesh.userData.faceNormals = [
+                new THREE.Vector3(0, 1, 0),
+                new THREE.Vector3(0, -1, 0)
             ];
-            const faceUvs = [
-                [0.1, 0.15], [0.9, 0.15], [0.9, 0.85],
-                [0.1, 0.15], [0.9, 0.85], [0.1, 0.85],
-                [0.5, 0.92], [0.15, 0.55], [0.85, 0.55],
-                [0.5, 0.08], [0.85, 0.45], [0.15, 0.45]
-            ];
-
-            verts.forEach(function (v, vi) {
-                positions.push(v[0], v[1], v[2]);
-                normals.push(n.x, n.y, n.z);
-                uvs.push(faceUvs[vi][0], faceUvs[vi][1]);
-            });
+            mesh.userData.faceNumbers = [1, 2];
+            mesh.userData.materialFaceMap = [null, 1, 2];
+        } else {
+            let geometry;
+            switch (sides) {
+                case 4: geometry = new THREE.TetrahedronGeometry(0.85); break;
+                case 6: geometry = new THREE.BoxGeometry(1, 1, 1); break;
+                case 8: geometry = new THREE.OctahedronGeometry(0.85); break;
+                case 10: geometry = createD10Geometry(); break;
+                case 12: geometry = new THREE.DodecahedronGeometry(0.85); break;
+                case 20: geometry = new THREE.IcosahedronGeometry(0.85); break;
+                case 100: geometry = new THREE.IcosahedronGeometry(0.85, icosahedronDetailForSides(100)); break;
+                default: geometry = new THREE.BoxGeometry(1, 1, 1); sides = 6; break;
+            }
+            mesh = buildNumberedMesh(geometry, sides, color);
         }
 
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-        geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-        geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-        for (let i = 0; i < segments; i++) {
-            geometry.addGroup(i * trisPerFace * 3, trisPerFace * 3, i);
-        }
-
-        return { geometry: geometry, faceNormals: faceNormals, faceCount: segments };
-    }
-
-    function buildPrismMesh(segments, sides, color) {
-        const bgHex = colorHex(color);
-        const radius = sides === 3 ? 0.62 : 0.75;
-        const height = sides === 3 ? 0.85 : 0.55;
-        const built = buildNGonalPrismGeometry(segments, radius, height);
-        const faceNumbers = [];
-        const materials = [];
-
-        for (let i = 0; i < sides; i++) {
-            faceNumbers.push(i + 1);
-            materials.push(dieMaterial(i + 1, bgHex));
-        }
-
-        const mesh = new THREE.Mesh(built.geometry, materials);
-        mesh.userData.faceNormals = built.faceNormals;
-        mesh.userData.faceNumbers = faceNumbers;
-        return mesh;
-    }
-
-    function createD1Mesh(color) {
-        const bgHex = colorHex(color);
-        const mesh = new THREE.Mesh(
-            new THREE.SphereGeometry(0.85, 32, 16),
-            dieMaterial(1, bgHex)
-        );
-        mesh.userData.faceNormals = [new THREE.Vector3(0, 1, 0)];
-        mesh.userData.faceNumbers = [1];
+        mesh.castShadow = true;
+        mesh.userData.sides = sides;
         return mesh;
     }
 
@@ -543,48 +488,6 @@ window.diceInterop = (function () {
     function renderLoop() {
         animationId = requestAnimationFrame(renderLoop);
         if (renderer && scene && camera) renderer.render(scene, camera);
-    }
-
-    function createDieMesh(sides, colorIndex) {
-        const color = COLORS[colorIndex % COLORS.length];
-        let mesh;
-
-        if (sides === 1) {
-            mesh = createD1Mesh(color);
-        } else if (sides === 2) {
-            const geometry = new THREE.CylinderGeometry(0.55, 0.55, 0.12, 32);
-            const bgHex = colorHex(color);
-            mesh = new THREE.Mesh(geometry, [
-                new THREE.MeshStandardMaterial({ color: color, metalness: 0.15, roughness: 0.45 }),
-                dieMaterial(1, bgHex),
-                dieMaterial(2, bgHex)
-            ]);
-            mesh.userData.faceNormals = [
-                new THREE.Vector3(0, 1, 0),
-                new THREE.Vector3(0, -1, 0)
-            ];
-            mesh.userData.faceNumbers = [1, 2];
-            mesh.userData.materialFaceMap = [null, 1, 2];
-        } else {
-            let geometry;
-            switch (sides) {
-                case 4: geometry = new THREE.TetrahedronGeometry(0.85); break;
-                case 6: geometry = new THREE.BoxGeometry(1, 1, 1); break;
-                case 8: geometry = new THREE.OctahedronGeometry(0.85); break;
-                case 10: geometry = createD10Geometry(); break;
-                case 12: geometry = new THREE.DodecahedronGeometry(0.85); break;
-                case 20: geometry = new THREE.IcosahedronGeometry(0.85); break;
-                case 100: geometry = new THREE.IcosahedronGeometry(0.85, icosahedronDetailForSides(100)); break;
-                default:
-                    if (sides >= 3) mesh = buildPrismMesh(sides, sides, color);
-                    break;
-            }
-            if (!mesh) mesh = buildNumberedMesh(geometry, sides, color);
-        }
-
-        mesh.castShadow = true;
-        mesh.userData.sides = sides;
-        return mesh;
     }
 
     function createD10Geometry() {

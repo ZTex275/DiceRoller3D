@@ -10,7 +10,7 @@ public sealed class DiceRollService
 
         foreach (var entry in entries)
         {
-            if (entry.Count <= 0 || entry.Sides < 1)
+            if (entry.Count <= 0 || !SupportedDice.IsSupported(entry.Sides))
             {
                 continue;
             }
@@ -21,7 +21,7 @@ public sealed class DiceRollService
                 {
                     EntryId = entry.Id,
                     Sides = entry.Sides,
-                    Value = entry.Sides == 1 ? 1 : Random.Shared.Next(1, entry.Sides + 1),
+                    Value = Random.Shared.Next(1, entry.Sides + 1),
                     IndexInGroup = i
                 });
             }

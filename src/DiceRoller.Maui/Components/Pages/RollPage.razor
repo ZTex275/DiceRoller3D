@@ -21,8 +21,13 @@
             {
                 <div class="dice-row" @key="entry.Id">
                     <label>
-                        Граней
-                        <input type="number" min="1" max="1000" @bind="entry.Sides" @bind:event="oninput" />
+                        Тип
+                        <select @bind="entry.Sides">
+                            @foreach (var sides in SupportedDice.Sides)
+                            {
+                                <option value="@sides">d@sides</option>
+                            }
+                        </select>
                     </label>
                     <label>
                         Штук
@@ -36,9 +41,10 @@
 
             <div class="dice-actions">
                 <button type="button" @onclick="AddEntry" disabled="@_rolling">+ Добавить тип</button>
-                <button type="button" class="btn-preset" @onclick="() => AddPreset(6,1)" disabled="@_rolling">d6</button>
-                <button type="button" class="btn-preset" @onclick="() => AddPreset(8,2)" disabled="@_rolling">2×d8</button>
-                <button type="button" class="btn-preset" @onclick="() => AddPreset(100,1)" disabled="@_rolling">d100</button>
+                @foreach (var sides in SupportedDice.Sides)
+                {
+                    <button type="button" class="btn-preset" @onclick="() => AddPreset(sides, 1)" disabled="@_rolling">d@sides</button>
+                }
             </div>
 
             <button type="button" class="btn-roll" @onclick="RollAll" disabled="@(_rolling || !CanRoll)">
@@ -74,7 +80,7 @@
     private bool _rolling;
     private bool _sceneReady;
 
-    private bool CanRoll => _pool.Any(e => e.Count > 0 && e.Sides >= 1);
+    private bool CanRoll => _pool.Any(e => e.Count > 0 && SupportedDice.IsSupported(e.Sides));
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -109,7 +115,7 @@
         var expanded = new List<object>();
         foreach (var entry in _pool)
         {
-            if (entry.Count <= 0 || entry.Sides < 1) continue;
+            if (entry.Count <= 0 || !SupportedDice.IsSupported(entry.Sides)) continue;
             for (var i = 0; i < entry.Count; i++)
             {
                 expanded.Add(new { sides = entry.Sides, entryId = entry.Id.ToString() });
