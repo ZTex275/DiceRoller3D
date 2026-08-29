@@ -22,7 +22,7 @@
                 <div class="dice-row" @key="entry.Id">
                     <label>
                         Граней
-                        <input type="number" min="2" max="1000" @bind="entry.Sides" @bind:event="oninput" />
+                        <input type="number" min="1" max="1000" @bind="entry.Sides" @bind:event="oninput" />
                     </label>
                     <label>
                         Штук
@@ -52,7 +52,7 @@
                     <ul>
                         @foreach (var r in _lastResult.Results)
                         {
-                            <li>Грань: <strong>@r.Value</strong></li>
+                            <li>d@(r.Sides): @r.Value</li>
                         }
                     </ul>
                 </div>
@@ -61,6 +61,7 @@
 
         <main class="dice-stage">
             <canvas @ref="_canvas" class="dice-canvas"></canvas>
+            <p class="scene-hint">Тяните для вращения, колёсико или pinch — зум</p>
         </main>
     </div>
 </div>
@@ -73,7 +74,7 @@
     private bool _rolling;
     private bool _sceneReady;
 
-    private bool CanRoll => _pool.Any(e => e.Count > 0 && e.Sides >= 2);
+    private bool CanRoll => _pool.Any(e => e.Count > 0 && e.Sides >= 1);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -108,6 +109,7 @@
         var expanded = new List<object>();
         foreach (var entry in _pool)
         {
+            if (entry.Count <= 0 || entry.Sides < 1) continue;
             for (var i = 0; i < entry.Count; i++)
             {
                 expanded.Add(new { sides = entry.Sides, entryId = entry.Id.ToString() });

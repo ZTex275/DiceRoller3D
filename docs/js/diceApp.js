@@ -60,7 +60,38 @@ window.diceInterop = (function () {
         return vA.clone().add(vB).add(vC).multiplyScalar(1 / 3);
     }
 
-    function splitGeometryForFaceTextures(geometry) {
+    function mergeClustersToSideCount(clusters, sides) {
+        if (!sides || clusters.length <= sides) return clusters;
+        const slots = fibonacciNormals(sides);
+        const merged = [];
+        for (let s = 0; s < sides; s++) {
+            merged.push({ triangles: [], normal: new THREE.Vector3(), weight: 0 });
+        }
+        clusters.forEach(function (c) {
+            let best = 0;
+            let bestDot = -Infinity;
+            for (let s = 0; s < sides; s++) {
+                const d = c.normal.dot(slots[s]);
+                if (d > bestDot) {
+                    bestDot = d;
+                    best = s;
+                }
+            }
+            merged[best].triangles.push.apply(merged[best].triangles, c.triangles);
+            merged[best].normal.add(c.normal);
+            merged[best].weight++;
+        });
+        return merged
+            .filter(function (m) { return m.triangles.length > 0; })
+            .map(function (m) {
+                return {
+                    triangles: m.triangles,
+                    normal: m.normal.clone().normalize()
+                };
+            });
+    }
+
+    function splitGeometryForFaceTextures(geometry, targetSides) {
         const src = geometry.index !== null ? geometry.toNonIndexed() : geometry.clone();
         const pos = src.attributes.position;
         const triCount = pos.count / 3;
@@ -96,6 +127,10 @@ window.diceInterop = (function () {
             let normal = ref.normal.clone();
             if (normal.dot(ref.center) < 0) normal.negate();
             clusters.push({ triangles: cluster, normal: normal });
+        }
+
+        if (targetSides) {
+            clusters = mergeClustersToSideCount(clusters, targetSides);
         }
 
         const positions = [];
@@ -245,18 +280,9 @@ window.diceInterop = (function () {
         }
 
         if (count > sides) {
-            const slotNormals = fibonacciNormals(sides);
-            indexed.forEach(function (item) {
-                let best = 0;
-                let bestDot = -Infinity;
-                for (let s = 0; s < sides; s++) {
-                    const d = item.n.dot(slotNormals[s]);
-                    if (d > bestDot) {
-                        bestDot = d;
-                        best = s;
-                    }
-                }
-                numbers[item.i] = best + 1;
+            sortBySpherical(indexed);
+            indexed.forEach(function (item, rank) {
+                numbers[item.i] = Math.min(rank + 1, sides);
             });
             return numbers;
         }
@@ -270,7 +296,7 @@ window.diceInterop = (function () {
 
     function buildNumberedMesh(geometry, sides, color) {
         const bgHex = colorHex(color);
-        const split = splitGeometryForFaceTextures(geometry);
+        const split = splitGeometryForFaceTextures(geometry, sides);
         const faceCount = split.faceCount;
         const faceNumbers = assignFaceNumbers(split.faceNormals, sides);
         const materials = [];
@@ -282,6 +308,54 @@ window.diceInterop = (function () {
         const mesh = new THREE.Mesh(split.geometry, materials);
         mesh.userData.faceNormals = split.faceNormals;
         mesh.userData.faceNumbers = faceNumbers;
+        return mesh;
+    }
+
+    function buildPrismMesh(segments, sides, color) {
+        const bgHex = colorHex(color);
+        const geometry = new THREE.CylinderGeometry(0.75, 0.75, 0.55, segments);
+        const split = splitGeometryForFaceTextures(geometry);
+        const sideEntries = [];
+        split.faceNormals.forEach(function (n, i) {
+            if (Math.abs(n.y) < 0.5) {
+                sideEntries.push({ i: i, angle: Math.atan2(n.z, n.x) });
+            }
+        });
+        sideEntries.sort(function (a, b) { return a.angle - b.angle; });
+        const faceNumbers = new Array(split.faceCount).fill(0);
+        sideEntries.forEach(function (entry, rank) {
+            faceNumbers[entry.i] = rank + 1;
+        });
+
+        const materials = [];
+        for (let i = 0; i < split.faceCount; i++) {
+            if (faceNumbers[i] > 0) {
+                materials.push(dieMaterial(faceNumbers[i], bgHex));
+            } else {
+                materials.push(new THREE.MeshStandardMaterial({ color: color, metalness: 0.15, roughness: 0.45 }));
+            }
+        }
+
+        const mesh = new THREE.Mesh(split.geometry, materials);
+        const numberedNormals = [];
+        const numberedValues = [];
+        sideEntries.forEach(function (entry, rank) {
+            numberedNormals.push(split.faceNormals[entry.i].clone());
+            numberedValues.push(rank + 1);
+        });
+        mesh.userData.faceNormals = numberedNormals;
+        mesh.userData.faceNumbers = numberedValues;
+        return mesh;
+    }
+
+    function createD1Mesh(color) {
+        const bgHex = colorHex(color);
+        const mesh = new THREE.Mesh(
+            new THREE.SphereGeometry(0.85, 32, 16),
+            dieMaterial(1, bgHex)
+        );
+        mesh.userData.faceNormals = [new THREE.Vector3(0, 1, 0)];
+        mesh.userData.faceNumbers = [1];
         return mesh;
     }
 
@@ -430,7 +504,9 @@ window.diceInterop = (function () {
         const color = COLORS[colorIndex % COLORS.length];
         let mesh;
 
-        if (sides === 2) {
+        if (sides === 1) {
+            mesh = createD1Mesh(color);
+        } else if (sides === 2) {
             const geometry = new THREE.CylinderGeometry(0.55, 0.55, 0.12, 32);
             const bgHex = colorHex(color);
             mesh = new THREE.Mesh(geometry, [
@@ -447,7 +523,9 @@ window.diceInterop = (function () {
         } else {
             let geometry;
             switch (sides) {
+                case 3: mesh = buildPrismMesh(3, 3, color); break;
                 case 4: geometry = new THREE.TetrahedronGeometry(0.85); break;
+                case 5: mesh = buildPrismMesh(5, 5, color); break;
                 case 6: geometry = new THREE.BoxGeometry(1, 1, 1); break;
                 case 8: geometry = new THREE.OctahedronGeometry(0.85); break;
                 case 10: geometry = createD10Geometry(); break;
@@ -455,7 +533,7 @@ window.diceInterop = (function () {
                 case 20: geometry = new THREE.IcosahedronGeometry(0.85); break;
                 default: geometry = new THREE.IcosahedronGeometry(0.85, icosahedronDetailForSides(sides)); break;
             }
-            mesh = buildNumberedMesh(geometry, sides, color);
+            if (!mesh) mesh = buildNumberedMesh(geometry, sides, color);
         }
 
         mesh.castShadow = true;
@@ -495,11 +573,12 @@ window.diceInterop = (function () {
 
         diceConfig.forEach(function (cfg, i) {
             const mesh = createDieMesh(cfg.sides, i);
+            const value = (results[i] && results[i].value != null) ? results[i].value : 1;
             mesh.position.copy(positions[i]);
             mesh.position.y = 3 + Math.random() * 2;
             scene.add(mesh);
             diceMeshes.push(mesh);
-            promises.push(animateDie(mesh, results[i].value, cfg.sides, i * 80));
+            promises.push(animateDie(mesh, value, cfg.sides, i * 80));
         });
 
         return Promise.all(promises).then(function () {
@@ -539,6 +618,9 @@ window.diceInterop = (function () {
     function getRotationForValue(mesh, value) {
         const faceNumbers = mesh.userData.faceNumbers;
         const faceNormals = mesh.userData.faceNormals;
+        if (!faceNumbers || !faceNormals || faceNumbers.length === 0) {
+            return { x: 0, y: 0, z: 0 };
+        }
         let faceIdx = -1;
         let bestY = -Infinity;
         for (let i = 0; i < faceNumbers.length; i++) {
