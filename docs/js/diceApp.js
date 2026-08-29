@@ -256,9 +256,38 @@ window.diceInterop = (function () {
         return 1;
     }
 
+    function assignD10FaceNumbers(faceNormals) {
+        const numbers = new Array(10);
+        const indexed = faceNormals.map(function (n, i) {
+            return { i: i, n: n.clone().normalize() };
+        });
+        const top = indexed.filter(function (x) { return x.n.y > 0; });
+        const bot = indexed.filter(function (x) { return x.n.y <= 0; });
+
+        function sortByAngle(arr) {
+            arr.sort(function (a, b) {
+                return Math.atan2(a.n.z, a.n.x) - Math.atan2(b.n.z, b.n.x);
+            });
+        }
+
+        sortByAngle(top);
+        sortByAngle(bot);
+        top.forEach(function (item, rank) {
+            numbers[item.i] = rank * 2;
+        });
+        bot.forEach(function (item, rank) {
+            numbers[item.i] = rank * 2 + 1;
+        });
+        return numbers;
+    }
+
     function assignFaceNumbers(faceNormals, sides) {
         const count = faceNormals.length;
         const numbers = new Array(count);
+
+        if (sides === 10 && count === 10) {
+            return assignD10FaceNumbers(faceNormals);
+        }
 
         if (sides === 6 && count === 6) {
             faceNormals.forEach(function (n, i) {
@@ -337,8 +366,13 @@ window.diceInterop = (function () {
                 case 8: geometry = new THREE.OctahedronGeometry(0.85); break;
                 case 10: geometry = createD10Geometry(); break;
                 case 12: geometry = new THREE.DodecahedronGeometry(0.85); break;
+                case 16:
+                case 24:
+                case 30:
+                case 100:
+                    geometry = new THREE.IcosahedronGeometry(0.85, icosahedronDetailForSides(sides));
+                    break;
                 case 20: geometry = new THREE.IcosahedronGeometry(0.85); break;
-                case 100: geometry = new THREE.IcosahedronGeometry(0.85, icosahedronDetailForSides(100)); break;
                 default: geometry = new THREE.BoxGeometry(1, 1, 1); sides = 6; break;
             }
             mesh = buildNumberedMesh(geometry, sides, color);
@@ -610,7 +644,10 @@ window.diceInterop = (function () {
                 faceIdx = i;
             }
         }
-        if (faceIdx === -1) faceIdx = (value - 1) % faceNumbers.length;
+        if (faceIdx === -1) {
+            faceIdx = faceNumbers.indexOf(value);
+            if (faceIdx === -1) faceIdx = value % faceNumbers.length;
+        }
 
         const normal = faceNormals[faceIdx].clone();
         const up = new THREE.Vector3(0, 1, 0);

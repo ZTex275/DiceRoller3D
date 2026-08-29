@@ -21,7 +21,9 @@ public sealed class DiceRollService
                 {
                     EntryId = entry.Id,
                     Sides = entry.Sides,
-                    Value = Random.Shared.Next(1, entry.Sides + 1),
+                    Value = entry.Sides == 10
+                        ? Random.Shared.Next(0, 10)
+                        : Random.Shared.Next(1, entry.Sides + 1),
                     IndexInGroup = i
                 });
             }
