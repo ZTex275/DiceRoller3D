@@ -311,49 +311,47 @@ window.diceInterop = (function () {
         return mesh;
     }
 
-    function buildNGonalPrismGeometry(segments, radius, height) {
+    function bipyramidDimensions(sides) {
+        if (sides === 3) return { radius: 0.62, height: 0.88 };
+        if (sides === 5) return { radius: 0.72, height: 0.64 };
+        if (sides === 7) return { radius: 0.74, height: 0.54 };
+        const t = Math.min(Math.max((sides - 3) / 12, 0), 1);
+        return { radius: 0.62 + t * 0.14, height: 0.86 - t * 0.3 };
+    }
+
+    function buildClosedBipyramidGeometry(segments, radius, height) {
         const positions = [];
         const normals = [];
         const uvs = [];
         const faceNormals = [];
         const halfH = height / 2;
-        const topCenter = [0, halfH, 0];
-        const bottomCenter = [0, -halfH, 0];
-        const ringBottom = [];
-        const ringTop = [];
+        const bottom = [0, -halfH, 0];
+        const top = [0, halfH, 0];
 
         for (let i = 0; i < segments; i++) {
-            const a = (i / segments) * Math.PI * 2;
-            const x = Math.cos(a) * radius;
-            const z = Math.sin(a) * radius;
-            ringBottom.push([x, -halfH, z]);
-            ringTop.push([x, halfH, z]);
-        }
+            const a0 = (i / segments) * Math.PI * 2;
+            const a1 = ((i + 1) / segments) * Math.PI * 2;
+            const v0 = [Math.cos(a0) * radius, 0, Math.sin(a0) * radius];
+            const v1 = [Math.cos(a1) * radius, 0, Math.sin(a1) * radius];
 
-        const trisPerFace = 4;
-
-        for (let i = 0; i < segments; i++) {
-            const j = (i + 1) % segments;
-            const aMid = ((i + 0.5) / segments) * Math.PI * 2;
-            const n = new THREE.Vector3(Math.cos(aMid), 0, Math.sin(aMid));
+            const e1 = new THREE.Vector3(v0[0] - bottom[0], v0[1] - bottom[1], v0[2] - bottom[2]);
+            const e2 = new THREE.Vector3(v1[0] - bottom[0], v1[1] - bottom[1], v1[2] - bottom[2]);
+            const n = e1.cross(e2).normalize();
+            const center = new THREE.Vector3(
+                (bottom[0] + top[0] + v0[0] + v1[0]) / 4,
+                (bottom[1] + top[1] + v0[1] + v1[1]) / 4,
+                (bottom[2] + top[2] + v0[2] + v1[2]) / 4
+            );
+            if (n.dot(center) < 0) n.negate();
             faceNormals.push(n);
 
-            const b0 = ringBottom[i];
-            const b1 = ringBottom[j];
-            const t0 = ringTop[i];
-            const t1 = ringTop[j];
-
             const verts = [
-                b0, b1, t1,
-                b0, t1, t0,
-                topCenter, t0, t1,
-                bottomCenter, b1, b0
+                bottom, v0, top,
+                bottom, top, v1
             ];
             const faceUvs = [
-                [0.1, 0.15], [0.9, 0.15], [0.9, 0.85],
-                [0.1, 0.15], [0.9, 0.85], [0.1, 0.85],
-                [0.5, 0.92], [0.15, 0.55], [0.85, 0.55],
-                [0.5, 0.08], [0.85, 0.45], [0.15, 0.45]
+                [0.5, 0.06], [0.1, 0.5], [0.5, 0.94],
+                [0.5, 0.06], [0.5, 0.94], [0.9, 0.5]
             ];
 
             verts.forEach(function (v, vi) {
@@ -368,7 +366,7 @@ window.diceInterop = (function () {
         geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
         geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
         for (let i = 0; i < segments; i++) {
-            geometry.addGroup(i * trisPerFace * 3, trisPerFace * 3, i);
+            geometry.addGroup(i * 6, 6, i);
         }
 
         return { geometry: geometry, faceNormals: faceNormals, faceCount: segments };
@@ -376,9 +374,8 @@ window.diceInterop = (function () {
 
     function buildPrismMesh(segments, sides, color) {
         const bgHex = colorHex(color);
-        const radius = sides === 3 ? 0.62 : 0.75;
-        const height = sides === 3 ? 0.85 : 0.55;
-        const built = buildNGonalPrismGeometry(segments, radius, height);
+        const dims = bipyramidDimensions(sides);
+        const built = buildClosedBipyramidGeometry(segments, dims.radius, dims.height);
         const faceNumbers = [];
         const materials = [];
 
