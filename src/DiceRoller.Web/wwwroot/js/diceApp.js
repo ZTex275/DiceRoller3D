@@ -105,7 +105,7 @@ window.diceInterop = (function () {
             });
         }
 
-        const clusters = [];
+        let clusters = [];
         const used = new Array(triCount).fill(false);
 
         for (let t = 0; t < triCount; t++) {
@@ -311,40 +311,66 @@ window.diceInterop = (function () {
         return mesh;
     }
 
-    function buildPrismMesh(segments, sides, color) {
-        const bgHex = colorHex(color);
-        const geometry = new THREE.CylinderGeometry(0.75, 0.75, 0.55, segments);
-        const split = splitGeometryForFaceTextures(geometry);
-        const sideEntries = [];
-        split.faceNormals.forEach(function (n, i) {
-            if (Math.abs(n.y) < 0.5) {
-                sideEntries.push({ i: i, angle: Math.atan2(n.z, n.x) });
-            }
-        });
-        sideEntries.sort(function (a, b) { return a.angle - b.angle; });
-        const faceNumbers = new Array(split.faceCount).fill(0);
-        sideEntries.forEach(function (entry, rank) {
-            faceNumbers[entry.i] = rank + 1;
-        });
+    function buildOpenPrismGeometry(segments, radius, height) {
+        const positions = [];
+        const normals = [];
+        const uvs = [];
+        const faceNormals = [];
+        const halfH = height / 2;
 
-        const materials = [];
-        for (let i = 0; i < split.faceCount; i++) {
-            if (faceNumbers[i] > 0) {
-                materials.push(dieMaterial(faceNumbers[i], bgHex));
-            } else {
-                materials.push(new THREE.MeshStandardMaterial({ color: color, metalness: 0.15, roughness: 0.45 }));
-            }
+        for (let i = 0; i < segments; i++) {
+            const a0 = (i / segments) * Math.PI * 2;
+            const a1 = ((i + 1) / segments) * Math.PI * 2;
+            const mid = (a0 + a1) / 2;
+            const n = new THREE.Vector3(Math.cos(mid), 0, Math.sin(mid));
+
+            const x0 = Math.cos(a0) * radius;
+            const z0 = Math.sin(a0) * radius;
+            const x1 = Math.cos(a1) * radius;
+            const z1 = Math.sin(a1) * radius;
+
+            const verts = [
+                [x0, -halfH, z0], [x1, -halfH, z1], [x1, halfH, z1],
+                [x0, -halfH, z0], [x1, halfH, z1], [x0, halfH, z0]
+            ];
+            const faceUvs = [
+                [0.1, 0.15], [0.9, 0.15], [0.9, 0.85],
+                [0.1, 0.15], [0.9, 0.85], [0.1, 0.85]
+            ];
+
+            verts.forEach(function (v, vi) {
+                positions.push(v[0], v[1], v[2]);
+                normals.push(n.x, n.y, n.z);
+                uvs.push(faceUvs[vi][0], faceUvs[vi][1]);
+            });
+            faceNormals.push(n);
         }
 
-        const mesh = new THREE.Mesh(split.geometry, materials);
-        const numberedNormals = [];
-        const numberedValues = [];
-        sideEntries.forEach(function (entry, rank) {
-            numberedNormals.push(split.faceNormals[entry.i].clone());
-            numberedValues.push(rank + 1);
-        });
-        mesh.userData.faceNormals = numberedNormals;
-        mesh.userData.faceNumbers = numberedValues;
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+        geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        for (let i = 0; i < segments; i++) {
+            geometry.addGroup(i * 6, 6, i);
+        }
+
+        return { geometry: geometry, faceNormals: faceNormals, faceCount: segments };
+    }
+
+    function buildPrismMesh(segments, sides, color) {
+        const bgHex = colorHex(color);
+        const built = buildOpenPrismGeometry(segments, 0.75, 0.55);
+        const faceNumbers = [];
+        const materials = [];
+
+        for (let i = 0; i < sides; i++) {
+            faceNumbers.push(i + 1);
+            materials.push(dieMaterial(i + 1, bgHex));
+        }
+
+        const mesh = new THREE.Mesh(built.geometry, materials);
+        mesh.userData.faceNormals = built.faceNormals;
+        mesh.userData.faceNumbers = faceNumbers;
         return mesh;
     }
 
