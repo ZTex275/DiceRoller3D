@@ -311,39 +311,49 @@ window.diceInterop = (function () {
         return mesh;
     }
 
-    function buildClosedPrismGeometry(segments, radius, height) {
+    function buildNGonalPrismGeometry(segments, radius, height) {
         const positions = [];
         const normals = [];
         const uvs = [];
         const faceNormals = [];
         const halfH = height / 2;
-        const bottom = [0, -halfH, 0];
-        const top = [0, halfH, 0];
+        const topCenter = [0, halfH, 0];
+        const bottomCenter = [0, -halfH, 0];
+        const ringBottom = [];
+        const ringTop = [];
 
         for (let i = 0; i < segments; i++) {
-            const a0 = (i / segments) * Math.PI * 2;
-            const a1 = ((i + 1) / segments) * Math.PI * 2;
-            const v0 = [Math.cos(a0) * radius, 0, Math.sin(a0) * radius];
-            const v1 = [Math.cos(a1) * radius, 0, Math.sin(a1) * radius];
+            const a = (i / segments) * Math.PI * 2;
+            const x = Math.cos(a) * radius;
+            const z = Math.sin(a) * radius;
+            ringBottom.push([x, -halfH, z]);
+            ringTop.push([x, halfH, z]);
+        }
 
-            const e1 = new THREE.Vector3(v0[0] - bottom[0], v0[1] - bottom[1], v0[2] - bottom[2]);
-            const e2 = new THREE.Vector3(v1[0] - bottom[0], v1[1] - bottom[1], v1[2] - bottom[2]);
-            const n = e1.cross(e2).normalize();
-            const center = new THREE.Vector3(
-                (bottom[0] + top[0] + v0[0] + v1[0]) / 4,
-                (bottom[1] + top[1] + v0[1] + v1[1]) / 4,
-                (bottom[2] + top[2] + v0[2] + v1[2]) / 4
-            );
-            if (n.dot(center) < 0) n.negate();
+        const trisPerFace = 4;
+
+        for (let i = 0; i < segments; i++) {
+            const j = (i + 1) % segments;
+            const aMid = ((i + 0.5) / segments) * Math.PI * 2;
+            const n = new THREE.Vector3(Math.cos(aMid), 0, Math.sin(aMid));
             faceNormals.push(n);
 
+            const b0 = ringBottom[i];
+            const b1 = ringBottom[j];
+            const t0 = ringTop[i];
+            const t1 = ringTop[j];
+
             const verts = [
-                bottom, v0, top,
-                bottom, top, v1
+                b0, b1, t1,
+                b0, t1, t0,
+                topCenter, t0, t1,
+                bottomCenter, b1, b0
             ];
             const faceUvs = [
-                [0.5, 0.08], [0.12, 0.5], [0.5, 0.92],
-                [0.5, 0.08], [0.5, 0.92], [0.88, 0.5]
+                [0.1, 0.15], [0.9, 0.15], [0.9, 0.85],
+                [0.1, 0.15], [0.9, 0.85], [0.1, 0.85],
+                [0.5, 0.92], [0.15, 0.55], [0.85, 0.55],
+                [0.5, 0.08], [0.85, 0.45], [0.15, 0.45]
             ];
 
             verts.forEach(function (v, vi) {
@@ -358,7 +368,7 @@ window.diceInterop = (function () {
         geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
         geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
         for (let i = 0; i < segments; i++) {
-            geometry.addGroup(i * 6, 6, i);
+            geometry.addGroup(i * trisPerFace * 3, trisPerFace * 3, i);
         }
 
         return { geometry: geometry, faceNormals: faceNormals, faceCount: segments };
@@ -366,7 +376,9 @@ window.diceInterop = (function () {
 
     function buildPrismMesh(segments, sides, color) {
         const bgHex = colorHex(color);
-        const built = buildClosedPrismGeometry(segments, 0.75, 0.55);
+        const radius = sides === 3 ? 0.62 : 0.75;
+        const height = sides === 3 ? 0.85 : 0.55;
+        const built = buildNGonalPrismGeometry(segments, radius, height);
         const faceNumbers = [];
         const materials = [];
 
@@ -556,15 +568,16 @@ window.diceInterop = (function () {
         } else {
             let geometry;
             switch (sides) {
-                case 3: mesh = buildPrismMesh(3, 3, color); break;
                 case 4: geometry = new THREE.TetrahedronGeometry(0.85); break;
-                case 5: mesh = buildPrismMesh(5, 5, color); break;
                 case 6: geometry = new THREE.BoxGeometry(1, 1, 1); break;
                 case 8: geometry = new THREE.OctahedronGeometry(0.85); break;
                 case 10: geometry = createD10Geometry(); break;
                 case 12: geometry = new THREE.DodecahedronGeometry(0.85); break;
                 case 20: geometry = new THREE.IcosahedronGeometry(0.85); break;
-                default: geometry = new THREE.IcosahedronGeometry(0.85, icosahedronDetailForSides(sides)); break;
+                case 100: geometry = new THREE.IcosahedronGeometry(0.85, icosahedronDetailForSides(100)); break;
+                default:
+                    if (sides >= 3) mesh = buildPrismMesh(sides, sides, color);
+                    break;
             }
             if (!mesh) mesh = buildNumberedMesh(geometry, sides, color);
         }
