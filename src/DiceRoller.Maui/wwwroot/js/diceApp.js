@@ -358,13 +358,14 @@ window.diceInterop = (function () {
             ];
             mesh.userData.faceNumbers = [1, 2];
             mesh.userData.materialFaceMap = [null, 1, 2];
+        } else if (sides === 10) {
+            mesh = buildD10Mesh(color);
         } else {
             let geometry;
             switch (sides) {
                 case 4: geometry = new THREE.TetrahedronGeometry(0.85); break;
                 case 6: geometry = new THREE.BoxGeometry(1, 1, 1); break;
                 case 8: geometry = new THREE.OctahedronGeometry(0.85); break;
-                case 10: geometry = createD10Geometry(); break;
                 case 12: geometry = new THREE.DodecahedronGeometry(0.85); break;
                 case 16:
                 case 24:
@@ -524,45 +525,70 @@ window.diceInterop = (function () {
         if (renderer && scene && camera) renderer.render(scene, camera);
     }
 
-    function createD10Geometry() {
+    function buildD10Mesh(color) {
         const scale = 0.85;
-        const beltR = 0.55 * scale;
-        const poleH = 0.65 * scale;
-        const beltY = 0.15 * scale;
-        const verts = [];
+        const beltR = 0.62 * scale;
+        const poleH = 0.78 * scale;
+        const bgHex = colorHex(color);
 
-        verts.push(0, poleH, 0);
-        verts.push(0, -poleH, 0);
-
+        const topApex = new THREE.Vector3(0, poleH, 0);
+        const botApex = new THREE.Vector3(0, -poleH, 0);
+        const belt = [];
         for (let i = 0; i < 5; i++) {
             const angle = (i / 5) * Math.PI * 2 - Math.PI / 2;
-            verts.push(Math.cos(angle) * beltR, beltY, Math.sin(angle) * beltR);
+            belt.push(new THREE.Vector3(Math.cos(angle) * beltR, 0, Math.sin(angle) * beltR));
         }
 
-        for (let i = 0; i < 5; i++) {
-            const angle = (i / 5) * Math.PI * 2 - Math.PI / 2 + Math.PI / 5;
-            verts.push(Math.cos(angle) * beltR, -beltY, Math.sin(angle) * beltR);
-        }
-
-        const indices = [];
-        const top = 0;
-        const bot = 1;
-        const U = function (i) { return 2 + (i % 5); };
-        const L = function (i) { return 7 + (i % 5); };
-
+        const faces = [];
         for (let i = 0; i < 5; i++) {
             const next = (i + 1) % 5;
-            indices.push(top, U(i), L(i));
-            indices.push(top, L(i), U(next));
-            indices.push(bot, U(next), L(i));
-            indices.push(bot, L(next), U(next));
+            faces.push({ verts: [topApex, belt[i], belt[next]], number: i * 2 });
+            faces.push({ verts: [botApex, belt[next], belt[i]], number: i * 2 + 1 });
         }
 
+        const positions = [];
+        const normals = [];
+        const uvs = [];
+        const groups = [];
+        const faceNormals = [];
+        const faceNumbers = [];
+        const materials = [];
+        const triUvs = [[0.5, 0.88], [0.12, 0.14], [0.88, 0.14]];
+        let offset = 0;
+
+        faces.forEach(function (face, faceIdx) {
+            const vA = face.verts[0];
+            const vB = face.verts[1];
+            const vC = face.verts[2];
+            const center = vA.clone().add(vB).add(vC).multiplyScalar(1 / 3);
+            let n = vC.clone().sub(vB).cross(vA.clone().sub(vB)).normalize();
+            if (n.dot(center) < 0) n.negate();
+
+            faceNormals.push(n);
+            faceNumbers.push(face.number);
+            materials.push(dieMaterial(face.number, bgHex));
+            groups.push({ start: offset, count: 3, materialIndex: faceIdx });
+
+            face.verts.forEach(function (v, idx) {
+                positions.push(v.x, v.y, v.z);
+                normals.push(n.x, n.y, n.z);
+                uvs.push(triUvs[idx][0], triUvs[idx][1]);
+                offset++;
+            });
+        });
+
         const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-        geometry.setIndex(indices);
-        geometry.computeVertexNormals();
-        return geometry;
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+        geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        groups.forEach(function (g) {
+            geometry.addGroup(g.start, g.count, g.materialIndex);
+        });
+
+        const mesh = new THREE.Mesh(geometry, materials);
+        mesh.userData.faceNormals = faceNormals;
+        mesh.userData.faceNumbers = faceNumbers;
+        return mesh;
     }
 
     function layoutDice(count) {
