@@ -311,31 +311,39 @@ window.diceInterop = (function () {
         return mesh;
     }
 
-    function buildOpenPrismGeometry(segments, radius, height) {
+    function buildClosedPrismGeometry(segments, radius, height) {
         const positions = [];
         const normals = [];
         const uvs = [];
         const faceNormals = [];
         const halfH = height / 2;
+        const bottom = [0, -halfH, 0];
+        const top = [0, halfH, 0];
 
         for (let i = 0; i < segments; i++) {
             const a0 = (i / segments) * Math.PI * 2;
             const a1 = ((i + 1) / segments) * Math.PI * 2;
-            const mid = (a0 + a1) / 2;
-            const n = new THREE.Vector3(Math.cos(mid), 0, Math.sin(mid));
+            const v0 = [Math.cos(a0) * radius, 0, Math.sin(a0) * radius];
+            const v1 = [Math.cos(a1) * radius, 0, Math.sin(a1) * radius];
 
-            const x0 = Math.cos(a0) * radius;
-            const z0 = Math.sin(a0) * radius;
-            const x1 = Math.cos(a1) * radius;
-            const z1 = Math.sin(a1) * radius;
+            const e1 = new THREE.Vector3(v0[0] - bottom[0], v0[1] - bottom[1], v0[2] - bottom[2]);
+            const e2 = new THREE.Vector3(v1[0] - bottom[0], v1[1] - bottom[1], v1[2] - bottom[2]);
+            const n = e1.cross(e2).normalize();
+            const center = new THREE.Vector3(
+                (bottom[0] + top[0] + v0[0] + v1[0]) / 4,
+                (bottom[1] + top[1] + v0[1] + v1[1]) / 4,
+                (bottom[2] + top[2] + v0[2] + v1[2]) / 4
+            );
+            if (n.dot(center) < 0) n.negate();
+            faceNormals.push(n);
 
             const verts = [
-                [x0, -halfH, z0], [x1, -halfH, z1], [x1, halfH, z1],
-                [x0, -halfH, z0], [x1, halfH, z1], [x0, halfH, z0]
+                bottom, v0, top,
+                bottom, top, v1
             ];
             const faceUvs = [
-                [0.1, 0.15], [0.9, 0.15], [0.9, 0.85],
-                [0.1, 0.15], [0.9, 0.85], [0.1, 0.85]
+                [0.5, 0.08], [0.12, 0.5], [0.5, 0.92],
+                [0.5, 0.08], [0.5, 0.92], [0.88, 0.5]
             ];
 
             verts.forEach(function (v, vi) {
@@ -343,7 +351,6 @@ window.diceInterop = (function () {
                 normals.push(n.x, n.y, n.z);
                 uvs.push(faceUvs[vi][0], faceUvs[vi][1]);
             });
-            faceNormals.push(n);
         }
 
         const geometry = new THREE.BufferGeometry();
@@ -359,7 +366,7 @@ window.diceInterop = (function () {
 
     function buildPrismMesh(segments, sides, color) {
         const bgHex = colorHex(color);
-        const built = buildOpenPrismGeometry(segments, 0.75, 0.55);
+        const built = buildClosedPrismGeometry(segments, 0.75, 0.55);
         const faceNumbers = [];
         const materials = [];
 
